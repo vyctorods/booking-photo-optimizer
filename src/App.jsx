@@ -228,7 +228,7 @@ function App() {
                 className="border-2 border-dashed border-slate-300 rounded-lg p-10 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50 transition-colors"
               >
                 <UploadCloud size={40} className="text-slate-400 mb-3" />
-                <p className="font-medium text-slate-700">Clique ou arraste suas fotos de qualquer lugar</p>
+                <p className="font-medium text-slate-700">Clique ou arraste suas fotos de qualquer lugar para esse campo da tela</p>
                 <p className="text-sm text-slate-500 mt-1 flex items-center gap-1 justify-center">
                   <ShieldCheck size={14} className="text-emerald-600" /> Preservação de 100% da estrutura real
                 </p>
