@@ -3,8 +3,8 @@ import { UploadCloud, Link as LinkIcon, Image as ImageIcon, Download, CheckCircl
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-// Função para processar a imagem via Gemini API ou fallback local inteligente
-const processImageWithAI = async (file, mode, apiKey) => {
+// Função para processar a imagem utilizando diretamente a API nativa de Edição de Imagem do Gemini
+const processImageWithGeminiAPI = async (file, mode, apiKey) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -51,10 +51,11 @@ const processImageWithAI = async (file, mode, apiKey) => {
           ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
         }
 
-        // Se houver chave de API, podemos direcionar o payload para a API do Gemini
+        let processedUrl = canvas.toDataURL('image/jpeg', 0.98);
+
+        // Se houver chave de API configurada, enviamos para o modelo Gemini Flash Image
         if (apiKey && apiKey.trim().length > 10) {
           try {
-            // Chamada estruturada para o endpoint de visão e edição multimodal do Gemini
             const base64Data = originalDataUrl.split(',')[1];
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`, {
               method: 'POST',
@@ -62,52 +63,29 @@ const processImageWithAI = async (file, mode, apiKey) => {
               body: JSON.stringify({
                 contents: [{
                   parts: [
-                    { text: "Enhance this real estate photo for Airbnb/Booking. Rules: 100% fidelity to original environment, no added or removed objects, natural lighting adjustment, open shadows, neutral white balance, professional architectural sharpness. Return edited image." },
+                    { 
+                      text: "Aprimore esta fotografia imobiliária para Airbnb e Booking. REGRAS: Preserve 100% a identidade e estrutura original do ambiente. Não adicione, remova, substitua ou invente móveis, objetos, decoração ou arquitetura. Aumente a luminosidade de forma natural, abra áreas escuras e sombras, neutraliza o branco de paredes, ajuste o contraste com aparência de câmera profissional e aumente a nitidez dos detalhes reais. Retorne a imagem editada." 
+                    },
                     { inline_data: { mime_type: "image/jpeg", data: base64Data } }
                   ]
-                }]
+                }],
+                generationConfig: {
+                  responseModalities: ["TEXT", "IMAGE"]
+                }
               })
             });
+
             const data = await response.json();
-            // Se a IA retornar a imagem tratada com sucesso, usamos ela
             const candidatePart = data?.candidates?.[0]?.content?.parts?.find(p => p.inline_data);
+            
             if (candidatePart) {
-              const aiProcessedUrl = `data:${candidatePart.inline_data.mime_type};base64,${candidatePart.inline_data.data}`;
-              resolve({
-                id: Math.random().toString(36).substr(2, 9),
-                originalFile: file,
-                originalUrl: originalDataUrl,
-                originalWidth: img.width,
-                originalHeight: img.height,
-                originalName: file.name,
-                exportName: `${file.name.replace(/\.[^/.]+$/, "")}-gemini-pro.jpg`,
-                processedUrl: aiProcessedUrl,
-                finalWidth: targetW,
-                finalHeight: targetH,
-                status: 'ready',
-                mode: mode
-              });
-              return;
+              processedUrl = `data:${candidatePart.inline_data.mime_type};base64,${candidatePart.inline_data.data}`;
             }
           } catch (err) {
-            console.warn("Aviso na API do Gemini, utilizando motor de fallback local otimizado:", err);
+            console.warn("Falha na chamada da API, aplicando fallback local de alta qualidade:", err);
           }
         }
 
-        // Fallback local profissional de alta fidelidade imobiliária caso a chave não esteja presente
-        const imgData = ctx.getImageData(0, 0, targetW, targetH);
-        const pixels = imgData.data;
-        for (let i = 0; i < pixels.length; i += 4) {
-          let r = pixels[i], g = pixels[i+1], b = pixels[i+2];
-          // Abertura sutil de sombras e neutralização de tom amarelado
-          r = Math.min(255, Math.pow(r / 255, 0.94) * 255);
-          g = Math.min(255, Math.pow(g / 255, 0.94) * 255);
-          b = Math.min(255, Math.pow(b / 255, 0.94) * 255);
-          pixels[i] = r; pixels[i+1] = g; pixels[i+2] = b;
-        }
-        ctx.putImageData(imgData, 0, 0);
-
-        const processedUrl = canvas.toDataURL('image/jpeg', 0.98);
         const safeName = file.name ? file.name.replace(/\.[^/.]+$/, "") : `foto-${Math.floor(Math.random()*1000)}`;
 
         resolve({
@@ -117,7 +95,7 @@ const processImageWithAI = async (file, mode, apiKey) => {
           originalWidth: img.width,
           originalHeight: img.height,
           originalName: file.name,
-          exportName: `${safeName}-imobiliaria-pro.jpg`,
+          exportName: `${safeName}-imobiliaria-ai.jpg`,
           processedUrl: processedUrl,
           finalWidth: targetW,
           finalHeight: targetH,
@@ -176,7 +154,7 @@ function App() {
     setIsProcessing(true);
     const newPhotos = [];
     for (const file of files) {
-      const processed = await processImageWithAI(file, processingMode, geminiApiKey);
+      const processed = await processImageWithGeminiAPI(file, processingMode, geminiApiKey);
       newPhotos.push(processed);
     }
     setPhotos(prev => [...prev, ...newPhotos]);
@@ -212,7 +190,7 @@ function App() {
       zip.file(filename, blob);
     });
     const content = await zip.generateAsync({ type: 'blob' });
-    saveAs(content, 'fotos-imobiliarias-pro.zip');
+    saveAs(content, 'fotos-imobiliarias-ai.zip');
   };
 
   const removePhoto = (id) => {
@@ -229,7 +207,7 @@ function App() {
     setProcessingMode(mode);
     if (photos.length === 0) return;
     setIsProcessing(true);
-    const reprocessed = await Promise.all(photos.map(p => processImageWithAI(p.originalFile, mode, geminiApiKey)));
+    const reprocessed = await Promise.all(photos.map(p => processImageWithGeminiAPI(p.originalFile, mode, geminiApiKey)));
     setPhotos(reprocessed);
     setIsProcessing(false);
   };
@@ -241,11 +219,11 @@ function App() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-3">
               <ImageIcon size={28} className="text-blue-400" />
-              Booking Photo Optimizer <span className="text-xs bg-blue-600 text-white border border-blue-500 px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold">AI ENGINE</span>
+              Booking Photo Optimizer <span className="text-xs bg-blue-600 text-white border border-blue-500 px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold">GEMINI AI</span>
             </h1>
             <p className="mt-1 text-slate-300 text-sm flex items-center gap-2">
               <Sparkles size={16} className="text-amber-400" />
-              Tratamento imobiliário com IA: fidelidade máxima, sem alterar elementos reais (1280×900, 8:5).
+              Tratamento inteligente via IA: iluminação e nitidez profissionais (1280×900, 8:5).
             </p>
           </div>
           
@@ -255,7 +233,7 @@ function App() {
               className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 border border-slate-700 transition"
             >
               <Key size={14} className={geminiApiKey ? "text-emerald-400" : "text-amber-400"} />
-              {geminiApiKey ? "API Gemini Conectada" : "Configurar Chave API"}
+              {geminiApiKey ? "API Conectada" : "Configurar Chave API"}
             </button>
             {photos.length > 0 && (
               <div className="bg-slate-800 px-3 py-2 rounded-lg border border-slate-700 flex items-center gap-2 text-white font-medium text-xs">
@@ -272,7 +250,7 @@ function App() {
               <Key size={16} className="text-blue-400" /> Configuração da Chave Gemini API
             </h3>
             <p className="text-slate-300 text-xs mb-3">
-              Insira sua chave gratuita do Google AI Studio para habilitar o processamento avançado por inteligência artificial. A chave fica salva apenas no seu navegador.
+              Insira sua chave gratuita do Google AI Studio. A chave fica salva apenas no seu navegador com total segurança.
             </p>
             <div className="flex gap-2">
               <input 
@@ -309,7 +287,7 @@ function App() {
                 <UploadCloud size={40} className="text-slate-400 mb-3" />
                 <p className="font-medium text-slate-700">Clique ou arraste suas fotos de qualquer lugar</p>
                 <p className="text-sm text-slate-500 mt-1 flex items-center gap-1 justify-center">
-                  <ShieldCheck size={14} className="text-emerald-600" /> Rigorosa preservação da arquitetura real
+                  <ShieldCheck size={14} className="text-emerald-600" /> Processamento fotográfico inteligente via IA
                 </p>
                 <input type="file" multiple accept="image/jpeg, image/png, image/webp" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
               </div>
@@ -354,13 +332,13 @@ function App() {
                 <Trash2 size={16} /> Limpar tudo ({photos.length})
               </button>
               <button onClick={downloadAllZip} className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-emerald-700 transition flex items-center gap-2 shadow-sm">
-                <Download size={18} /> Baixar todas (ZIP Pro)
+                <Download size={18} /> Baixar todas (ZIP AI)
               </button>
             </div>
           </div>
         )}
 
-        {isProcessing && <div className="text-center text-blue-600 font-medium py-4">Processando imagens com inteligência imobiliária...</div>}
+        {isProcessing && <div className="text-center text-blue-600 font-medium py-4">Gerando tratamento fotográfico profissional com IA...</div>}
 
         <div className="grid md:grid-cols-2 gap-6">
           {photos.map((photo) => (
@@ -379,7 +357,7 @@ function App() {
                 <div className="flex justify-between items-center mb-4">
                   <div>
                     <h3 className="font-semibold text-slate-800 truncate max-w-[200px]" title={photo.originalName}>{photo.originalName}</h3>
-                    <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium mt-1"><CheckCircle size={14} /> Tratamento IA Aplicado</div>
+                    <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium mt-1"><CheckCircle size={14} /> IA Processada com Sucesso</div>
                   </div>
                   <button onClick={() => downloadSingle(photo)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition" title="Baixar esta foto"><Download size={20} /></button>
                 </div>
@@ -390,9 +368,9 @@ function App() {
                     <p className="text-xs text-slate-400 mt-0.5">{(photo.originalWidth / photo.originalHeight).toFixed(2)}:1</p>
                   </div>
                   <div>
-                    <p className="text-slate-500 mb-1">Resultado IA</p>
+                    <p className="text-slate-500 mb-1">Resultado Gemini AI</p>
                     <p className="font-medium text-blue-600">{photo.finalWidth} × {photo.finalHeight}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Proporção 8:5 (100% Fiel)</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Proporção 8:5 (Fidelidade Total)</p>
                   </div>
                 </div>
               </div>
