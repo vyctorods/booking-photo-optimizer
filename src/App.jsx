@@ -1,9 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, Link as LinkIcon, Image as ImageIcon, Download, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { UploadCloud, Link as LinkIcon, Image as ImageIcon, Download, CheckCircle, AlertCircle, X, Trash2, Layers } from 'lucide-react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-// Função de processamento integrada para evitar erros de arquivos separados
 const processImage = (file, mode = 'auto') => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -61,7 +60,7 @@ const processImage = (file, mode = 'auto') => {
         }
 
         const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-        const safeName = file.name ? file.name.replace(/\.[^/.]+$/, "") : `booking-foto-${Math.floor(Math.random()*1000)}`;
+        const safeName = file.name ? file.name.replace(/\.[^/.]+$/, "") : `foto-${Math.floor(Math.random()*1000)}`;
         
         resolve({
           id: Math.random().toString(36).substr(2, 9),
@@ -102,7 +101,7 @@ function App() {
   const fileInputRef = useRef(null);
 
   const handleFileUpload = async (event) => {
-    const files = Array.from(event.target.files);
+    const files = Array.from(event.target.files).filter(f => f.type.startsWith('image/'));
     if (!files.length) return;
     await processFiles(files);
   };
@@ -127,16 +126,19 @@ function App() {
   };
 
   const handleUrlImport = async () => {
-    if (!urlInput.includes('booking.com')) {
-      setUrlError('Por favor, insira um link válido da Booking.com');
+    if (!urlInput.trim()) {
+      setUrlError('Por favor, insira um link válido (Airbnb, Booking, etc.)');
       return;
     }
     setUrlError('');
     try {
-      const response = await fetch(urlInput);
+      const response = /airbnb|booking/.test(urlInput.toLowerCase()) 
+        ? await fetch(urlInput).catch(() => ({ ok: false }))
+        : { ok: false };
+      
       if (!response.ok) throw new Error('Bloqueado');
     } catch (error) {
-      setUrlError('O Booking bloqueia a extração automática de fotos por questões de segurança (CORS/Robots). Por favor, faça o upload manual das suas fotos abaixo.');
+      setUrlError('Plataformas como Airbnb e Booking bloqueiam extração direta de links por segurança (CORS). Por favor, arraste ou faça o upload das imagens baixadas da Guesty ou do anúncio abaixo.');
     }
   };
 
@@ -148,15 +150,21 @@ function App() {
     const zip = new JSZip();
     photos.forEach((photo, index) => {
       const blob = dataURLtoBlob(photo.processedUrl);
-      const filename = `booking-${String(index + 1).padStart(2, '0')}.jpg`;
+      const filename = `foto-${String(index + 1).padStart(2, '0')}.jpg`;
       zip.file(filename, blob);
     });
     const content = await zip.generateAsync({ type: 'blob' });
-    saveAs(content, 'fotos-booking-prontas.zip');
+    saveAs(content, 'fotos-otimizadas-lote.zip');
   };
 
   const removePhoto = (id) => {
     setPhotos(photos.filter(p => p.id !== id));
+  };
+
+  const clearAllPhotos = () => {
+    if (window.confirm('Deseja realmente remover todas as imagens da lista?')) {
+      setPhotos([]);
+    }
   };
 
   const changeMode = async (mode) => {
@@ -171,20 +179,29 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-20">
       <header className="bg-blue-600 text-white py-8 px-4 shadow-md">
-        <div className="max-w-5xl mx-auto">
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <ImageIcon size={32} />
-            Booking Photo Optimizer
-          </h1>
-          <p className="mt-2 text-blue-100 text-lg">Prepare suas fotos para o Booking em poucos cliques (1280×900, Proporção 8:5).</p>
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <ImageIcon size={32} />
+              Booking Photo Optimizer
+            </h1>
+            <p className="mt-2 text-blue-100 text-lg">Prepare fotos de qualquer PMS (Guesty) ou plataforma em poucos cliques (1280×900, Proporção 8:5).</p>
+          </div>
+          {photos.length > 0 && (
+            <div className="bg-blue-700/60 px-4 py-2 rounded-xl border border-blue-400/30 flex items-center gap-2 text-white font-medium">
+              <Layers size={20} />
+              <span>{photos.length} {photos.length === 1 ? 'imagem selecionada' : 'imagens selecionadas'}</span>
+            </div>
+          )}
         </div>
       </header>
+
       <main className="max-w-5xl mx-auto px-4 mt-8 space-y-8">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <div className="grid md:grid-cols-2 gap-8">
             <div>
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <UploadCloud className="text-blue-500"/> Enviar fotos
+                <UploadCloud className="text-blue-500"/> Enviar fotos (Guesty, Computador, etc.)
               </h2>
               <div 
                 onDragOver={(e) => e.preventDefault()}
@@ -193,20 +210,27 @@ function App() {
                 className="border-2 border-dashed border-slate-300 rounded-lg p-10 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50 transition-colors"
               >
                 <UploadCloud size={40} className="text-slate-400 mb-3" />
-                <p className="font-medium text-slate-700">Clique ou arraste suas fotos aqui</p>
-                <p className="text-sm text-slate-500 mt-1">Aceita JPG, PNG, WEBP</p>
+                <p className="font-medium text-slate-700">Clique ou arraste suas fotos de qualquer lugar aqui</p>
+                <p className="text-sm text-slate-500 mt-1">Aceita JPG, PNG, WEBP (Múltiplas de uma vez)</p>
                 <input type="file" multiple accept="image/jpeg, image/png, image/webp" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
               </div>
             </div>
+
             <div>
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <LinkIcon className="text-blue-500"/> Colar link do Booking
+                <LinkIcon className="text-blue-500"/> Link do Anúncio (Airbnb / Booking)
               </h2>
               <div className="flex flex-col gap-3">
-                <input type="url" placeholder="https://www.booking.com/hotel/..." className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={urlInput} onChange={(e) => setUrlInput(e.target.value)} />
-                <button onClick={handleUrlImport} className="bg-slate-800 text-white font-medium py-3 rounded-lg hover:bg-slate-700 transition">Buscar imagens</button>
+                <input 
+                  type="url" 
+                  placeholder="Cole o link do Airbnb, Booking, etc..." 
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                  value={urlInput} 
+                  onChange={(e) => setUrlInput(e.target.value)} 
+                />
+                <button onClick={handleUrlImport} className="bg-slate-800 text-white font-medium py-3 rounded-lg hover:bg-slate-700 transition">Analisar link</button>
                 {urlError && (
-                  <div className="mt-2 p-3 bg-red-50 text-red-700 text-sm rounded-lg flex gap-2 items-start">
+                  <div className="mt-2 p-3 bg-amber-50 text-amber-800 text-sm rounded-lg flex gap-2 items-start border border-amber-200">
                     <AlertCircle size={18} className="shrink-0 mt-0.5" />
                     <p>{urlError}</p>
                   </div>
@@ -215,21 +239,30 @@ function App() {
             </div>
           </div>
         </div>
+
         {photos.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200 gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <span className="font-semibold text-slate-700">Modo de enquadramento:</span>
               <div className="flex bg-slate-100 p-1 rounded-lg">
                 <button onClick={() => changeMode('auto')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${processingMode === 'auto' ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Automático (Crop Inteligente)</button>
                 <button onClick={() => changeMode('nocrop')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${processingMode === 'nocrop' ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Sem Crop (Preenchimento)</button>
               </div>
             </div>
-            <button onClick={downloadAllZip} className="bg-green-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-green-700 transition flex items-center gap-2">
-              <Download size={18} /> Baixar todas (ZIP)
-            </button>
+            
+            <div className="flex items-center gap-3">
+              <button onClick={clearAllPhotos} className="bg-red-50 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-100 transition flex items-center gap-2 border border-red-200 text-sm">
+                <Trash2 size={16} /> Limpar tudo ({photos.length})
+              </button>
+              <button onClick={downloadAllZip} className="bg-green-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-green-700 transition flex items-center gap-2 shadow-sm">
+                <Download size={18} /> Baixar todas (ZIP)
+              </button>
+            </div>
           </div>
         )}
-        {isProcessing && <div className="text-center text-blue-600 font-medium py-4">Processando imagens, aguarde...</div>}
+
+        {isProcessing && <div className="text-center text-blue-600 font-medium py-4">Processando lote de imagens, aguarde...</div>}
+
         <div className="grid md:grid-cols-2 gap-6">
           {photos.map((photo) => (
             <div key={photo.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
@@ -239,7 +272,7 @@ function App() {
                   <img src={photo.originalUrl} alt="Original" className="w-full h-full object-contain p-4 opacity-50" />
                   <span className="absolute text-white font-semibold bg-black/50 px-4 py-2 rounded-full border border-white/20 backdrop-blur-sm">Visualizando Original</span>
                 </div>
-                <button onClick={() => removePhoto(photo.id)} className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 transition shadow-sm">
+                <button onClick={() => removePhoto(photo.id)} className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 transition shadow-sm" title="Remover esta foto">
                   <X size={16} />
                 </button>
               </div>
