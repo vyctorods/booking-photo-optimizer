@@ -1,7 +1,41 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, Link as LinkIcon, Image as ImageIcon, Download, CheckCircle, AlertCircle, X, Trash2, Layers } from 'lucide-react';
+import { UploadCloud, Link as LinkIcon, Image as ImageIcon, Download, CheckCircle, AlertCircle, X, Trash2, Layers, Sparkles } from 'lucide-react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+
+// Função avançada de nitidez (Smart Sharpen) para realçar texturas e detalhes arquitetônicos
+const applySharpen = (ctx, width, height) => {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const w = width;
+  const h = height;
+  
+  // Matriz de convolução de nitidez moderada/alta
+  const weights = [
+     0, -1,  0,
+    -1,  5, -1,
+     0, -1,  0
+  ];
+  const kat = 1;
+  const imp = new Uint8ClampedArray(data);
+
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      for (let c = 0; c < 3; c++) {
+        let sum = 0;
+        for (let ky = -1; ky <= 1; ky++) {
+          for (let kx = -1; kx <= 1; kx++) {
+            const idx = ((y + ky) * w + (x + kx)) * 4 + c;
+            sum += imp[idx] * weights[(ky + kat) * 3 + (kx + kat)];
+          }
+        }
+        const i = (y * w + x) * 4 + c;
+        data[i] = Math.min(255, Math.max(0, sum));
+      }
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+};
 
 const processImage = (file, mode = 'auto') => {
   return new Promise((resolve) => {
@@ -34,6 +68,7 @@ const processImage = (file, mode = 'auto') => {
             offsetY = (targetH - drawH) / 2;
           }
           
+          ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
 
@@ -55,11 +90,16 @@ const processImage = (file, mode = 'auto') => {
              offsetX = (targetW - drawW) / 2;
           }
           
+          ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
         }
 
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        // Aplica o filtro de nitidez profissional para dar o aspecto de alta qualidade real
+        applySharpen(ctx, targetW, targetH);
+
+        // Compressão em 98% para garantir máxima fidelidade visual sem perda perceptível
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.98);
         const safeName = file.name ? file.name.replace(/\.[^/.]+$/, "") : `foto-${Math.floor(Math.random()*1000)}`;
         
         resolve({
@@ -69,7 +109,7 @@ const processImage = (file, mode = 'auto') => {
           originalWidth: img.width,
           originalHeight: img.height,
           originalName: file.name,
-          exportName: `${safeName}-otimizada.jpg`,
+          exportName: `${safeName}-pro-otimizada.jpg`,
           processedUrl: dataUrl,
           finalWidth: targetW,
           finalHeight: targetH,
@@ -154,7 +194,7 @@ function App() {
       zip.file(filename, blob);
     });
     const content = await zip.generateAsync({ type: 'blob' });
-    saveAs(content, 'fotos-otimizadas-lote.zip');
+    saveAs(content, 'fotos-pro-otimizadas-lote.zip');
   };
 
   const removePhoto = (id) => {
@@ -183,9 +223,12 @@ function App() {
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <ImageIcon size={32} />
-              Booking Photo Optimizer
+              Booking Photo Optimizer <span className="text-xs bg-blue-500 border border-blue-400 px-2.5 py-1 rounded-full uppercase tracking-wider font-semibold">PRO HD</span>
             </h1>
-            <p className="mt-2 text-blue-100 text-lg">Prepare fotos de qualquer PMS (Guesty) ou plataforma em poucos cliques (1280×900, Proporção 8:5).</p>
+            <p className="mt-2 text-blue-100 text-lg flex items-center gap-2">
+              <Sparkles size={18} className="text-amber-300" />
+              Com filtro de nitidez arquitetônica automática (1280×900, Proporção 8:5).
+            </p>
           </div>
           {photos.length > 0 && (
             <div className="bg-blue-700/60 px-4 py-2 rounded-xl border border-blue-400/30 flex items-center gap-2 text-white font-medium">
@@ -211,7 +254,7 @@ function App() {
               >
                 <UploadCloud size={40} className="text-slate-400 mb-3" />
                 <p className="font-medium text-slate-700">Clique ou arraste suas fotos de qualquer lugar aqui</p>
-                <p className="text-sm text-slate-500 mt-1">Aceita JPG, PNG, WEBP (Múltiplas de uma vez)</p>
+                <p className="text-sm text-slate-500 mt-1">Aceita JPG, PNG, WEBP (Com melhoria HD automática)</p>
                 <input type="file" multiple accept="image/jpeg, image/png, image/webp" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
               </div>
             </div>
@@ -255,13 +298,13 @@ function App() {
                 <Trash2 size={16} /> Limpar tudo ({photos.length})
               </button>
               <button onClick={downloadAllZip} className="bg-green-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-green-700 transition flex items-center gap-2 shadow-sm">
-                <Download size={18} /> Baixar todas (ZIP)
+                <Download size={18} /> Baixar todas (ZIP HD)
               </button>
             </div>
           </div>
         )}
 
-        {isProcessing && <div className="text-center text-blue-600 font-medium py-4">Processando lote de imagens, aguarde...</div>}
+        {isProcessing && <div className="text-center text-blue-600 font-medium py-4">Aplicando nitidez profissional e processando lote...</div>}
 
         <div className="grid md:grid-cols-2 gap-6">
           {photos.map((photo) => (
@@ -280,7 +323,7 @@ function App() {
                 <div className="flex justify-between items-center mb-4">
                   <div>
                     <h3 className="font-semibold text-slate-800 truncate max-w-[200px]" title={photo.originalName}>{photo.originalName}</h3>
-                    <div className="flex items-center gap-1 text-sm text-green-600 font-medium mt-1"><CheckCircle size={14} /> Pronta para uso</div>
+                    <div className="flex items-center gap-1 text-sm text-green-600 font-medium mt-1"><CheckCircle size={14} /> HD Nitidez Aplicada</div>
                   </div>
                   <button onClick={() => downloadSingle(photo)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition" title="Baixar esta foto"><Download size={20} /></button>
                 </div>
@@ -291,7 +334,7 @@ function App() {
                     <p className="text-xs text-slate-400 mt-0.5">{(photo.originalWidth / photo.originalHeight).toFixed(2)}:1</p>
                   </div>
                   <div>
-                    <p className="text-slate-500 mb-1">Resultado</p>
+                    <p className="text-slate-500 mb-1">Resultado HD</p>
                     <p className="font-medium text-blue-600">{photo.finalWidth} × {photo.finalHeight}</p>
                     <p className="text-xs text-slate-400 mt-0.5">Proporção 8:5</p>
                   </div>
