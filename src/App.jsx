@@ -3,20 +3,20 @@ import { UploadCloud, Link as LinkIcon, Image as ImageIcon, Download, CheckCircl
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-// Função avançada de nitidez (Smart Sharpen) para realçar texturas e detalhes arquitetônicos
-const applySharpen = (ctx, width, height) => {
+// Função ultra-potente de Nitidez e Contraste Arquitetônico (HD Turbo)
+const applyAdvancedEnhancements = (ctx, width, height) => {
   const imageData = ctx.getImageData(0, 0, width, height);
   const data = imageData.data;
   const w = width;
   const h = height;
   
-  // Matriz de convolução de nitidez moderada/alta
+  // Matriz de convolução de alta performance para realce profundo de bordas e texturas
   const weights = [
-     0, -1,  0,
-    -1,  5, -1,
-     0, -1,  0
+    -1, -1, -1,
+    -1,  9, -1,
+    -1, -1, -1
   ];
-  const kat = 1;
+  
   const imp = new Uint8ClampedArray(data);
 
   for (let y = 1; y < h - 1; y++) {
@@ -26,11 +26,16 @@ const applySharpen = (ctx, width, height) => {
         for (let ky = -1; ky <= 1; ky++) {
           for (let kx = -1; kx <= 1; kx++) {
             const idx = ((y + ky) * w + (x + kx)) * 4 + c;
-            sum += imp[idx] * weights[(ky + kat) * 3 + (kx + kat)];
+            sum += imp[idx] * weights[(ky + 1) * 3 + (kx + 1)];
           }
         }
+        // Mistura controlada para evitar ruído excessivo, mantendo a alta nitidez
         const i = (y * w + x) * 4 + c;
-        data[i] = Math.min(255, Math.max(0, sum));
+        const originalVal = imp[i];
+        const enhancedVal = Math.min(255, Math.max(0, sum));
+        
+        // Blend de 75% da imagem nova com 25% da original para nitidez cristalina
+        data[i] = Math.round(enhancedVal * 0.75 + originalVal * 0.25);
       }
     }
   }
@@ -73,7 +78,7 @@ const processImage = (file, mode = 'auto') => {
           ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
 
         } else if (mode === 'nocrop') {
-          ctx.filter = 'blur(40px) brightness(0.8)';
+          ctx.filter = 'blur(40px) brightness(0.85)';
           ctx.drawImage(img, -100, -100, targetW + 200, targetH + 200);
           ctx.filter = 'none';
 
@@ -95,11 +100,11 @@ const processImage = (file, mode = 'auto') => {
           ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
         }
 
-        // Aplica o filtro de nitidez profissional para dar o aspecto de alta qualidade real
-        applySharpen(ctx, targetW, targetH);
+        // Aplica o super filtro de nitidez arquitetônica
+        applyAdvancedEnhancements(ctx, targetW, targetH);
 
-        // Compressão em 98% para garantir máxima fidelidade visual sem perda perceptível
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.98);
+        // Qualidade JPEG máxima (1.0) para zero perda de compressão
+        const dataUrl = canvas.toDataURL('image/jpeg', 1.0);
         const safeName = file.name ? file.name.replace(/\.[^/.]+$/, "") : `foto-${Math.floor(Math.random()*1000)}`;
         
         resolve({
@@ -109,7 +114,7 @@ const processImage = (file, mode = 'auto') => {
           originalWidth: img.width,
           originalHeight: img.height,
           originalName: file.name,
-          exportName: `${safeName}-pro-otimizada.jpg`,
+          exportName: `${safeName}-ultra-hd.jpg`,
           processedUrl: dataUrl,
           finalWidth: targetW,
           finalHeight: targetH,
@@ -190,11 +195,11 @@ function App() {
     const zip = new JSZip();
     photos.forEach((photo, index) => {
       const blob = dataURLtoBlob(photo.processedUrl);
-      const filename = `foto-${String(index + 1).padStart(2, '0')}.jpg`;
+      const filename = `foto-ultra-hd-${String(index + 1).padStart(2, '0')}.jpg`;
       zip.file(filename, blob);
     });
     const content = await zip.generateAsync({ type: 'blob' });
-    saveAs(content, 'fotos-pro-otimizadas-lote.zip');
+    saveAs(content, 'fotos-ultra-hd-lote.zip');
   };
 
   const removePhoto = (id) => {
@@ -223,11 +228,11 @@ function App() {
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <ImageIcon size={32} />
-              Booking Photo Optimizer <span className="text-xs bg-blue-500 border border-blue-400 px-2.5 py-1 rounded-full uppercase tracking-wider font-semibold">PRO HD</span>
+              Booking Photo Optimizer <span className="text-xs bg-amber-400 text-slate-900 border border-amber-300 px-2.5 py-1 rounded-full uppercase tracking-wider font-extrabold">ULTRA HD</span>
             </h1>
             <p className="mt-2 text-blue-100 text-lg flex items-center gap-2">
               <Sparkles size={18} className="text-amber-300" />
-              Com filtro de nitidez arquitetônica automática (1280×900, Proporção 8:5).
+              Com realce avançado de nitidez e clareza para anúncios de alto padrão.
             </p>
           </div>
           {photos.length > 0 && (
@@ -254,7 +259,7 @@ function App() {
               >
                 <UploadCloud size={40} className="text-slate-400 mb-3" />
                 <p className="font-medium text-slate-700">Clique ou arraste suas fotos de qualquer lugar aqui</p>
-                <p className="text-sm text-slate-500 mt-1">Aceita JPG, PNG, WEBP (Com melhoria HD automática)</p>
+                <p className="text-sm text-slate-500 mt-1">Com motor de realce Ultra HD ativado</p>
                 <input type="file" multiple accept="image/jpeg, image/png, image/webp" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
               </div>
             </div>
@@ -304,7 +309,7 @@ function App() {
           </div>
         )}
 
-        {isProcessing && <div className="text-center text-blue-600 font-medium py-4">Aplicando nitidez profissional e processando lote...</div>}
+        {isProcessing && <div className="text-center text-blue-600 font-medium py-4">Aplicando realce Ultra HD e processando imagens...</div>}
 
         <div className="grid md:grid-cols-2 gap-6">
           {photos.map((photo) => (
@@ -323,7 +328,7 @@ function App() {
                 <div className="flex justify-between items-center mb-4">
                   <div>
                     <h3 className="font-semibold text-slate-800 truncate max-w-[200px]" title={photo.originalName}>{photo.originalName}</h3>
-                    <div className="flex items-center gap-1 text-sm text-green-600 font-medium mt-1"><CheckCircle size={14} /> HD Nitidez Aplicada</div>
+                    <div className="flex items-center gap-1 text-sm text-green-600 font-medium mt-1"><CheckCircle size={14} /> Ultra HD Aplicado</div>
                   </div>
                   <button onClick={() => downloadSingle(photo)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition" title="Baixar esta foto"><Download size={20} /></button>
                 </div>
@@ -334,9 +339,9 @@ function App() {
                     <p className="text-xs text-slate-400 mt-0.5">{(photo.originalWidth / photo.originalHeight).toFixed(2)}:1</p>
                   </div>
                   <div>
-                    <p className="text-slate-500 mb-1">Resultado HD</p>
+                    <p className="text-slate-500 mb-1">Resultado Ultra HD</p>
                     <p className="font-medium text-blue-600">{photo.finalWidth} × {photo.finalHeight}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Proporção 8:5</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Proporção 8:5 (Qualidade 100%)</p>
                   </div>
                 </div>
               </div>
